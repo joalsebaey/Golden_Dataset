@@ -1,0 +1,44 @@
+role_id,department_id,role_title,level,salary_band_min,salary_band_max
+1,1,Intern Engineering,1,3500.00,13000.00
+2,1,Junior Engineering,2,7000.00,19500.00
+3,1,Mid Engineering,3,13000.00,31000.00
+4,1,Senior Engineering,4,22000.00,46000.00
+5,1,Lead Engineering,5,36000.00,63000.00
+6,2,Intern Sales,1,3500.00,13000.00
+7,2,Junior Sales,2,7000.00,19500.00
+8,2,Mid Sales,3,13000.00,31000.00
+9,2,Senior Sales,4,22000.00,46000.00
+10,2,Lead Sales,5,36000.00,63000.00
+11,3,Intern Marketing,1,3500.00,13000.00
+12,3,Junior Marketing,2,7000.00,19500.00
+13,3,Mid Marketing,3,13000.00,31000.00
+14,3,Senior Marketing,4,22000.00,46000.00
+15,4,Intern Human Resources,1,3500.00,13000.00
+16,4,Junior Human Resources,2,7000.00,19500.00
+17,4,Mid Human Resources,3,13000.00,31000.00
+18,4,Senior Human Resources,4,22000.00,46000.00
+19,4,Lead Human Resources,5,36000.00,63000.00
+20,4,Director Human Resources,6,58000.00,90000.00
+21,5,Intern Finance,1,3500.00,13000.00
+22,5,Junior Finance,2,7000.00,19500.00
+23,5,Mid Finance,3,13000.00,31000.00
+24,5,Senior Finance,4,22000.00,46000.00
+25,5,Lead Finance,5,36000.00,63000.00
+26,5,Director Finance,6,58000.00,90000.00
+27,6,Intern Customer Support,1,3500.00,13000.00
+28,6,Junior Customer Support,2,7000.00,19500.00
+29,6,Mid Customer Support,3,13000.00,31000.00
+30,6,Senior Customer Support,4,22000.00,46000.00
+31,7,Intern Operations,1,3500.00,13000.00
+32,7,Junior Operations,2,7000.00,19500.00
+33,7,Mid Operations,3,13000.00,31000.00
+34,7,Senior Operations,4,22000.00,46000.00
+35,7,Lead Operations,5,36000.00,63000.00
+36,8,Intern Legal,1,3500.00,13000.00
+37,8,Junior Legal,2,7000.00,19500.00
+38,8,Mid Legal,3,13000.00,31000.00
+39,8,Senior Legal,4,22000.00,46000.00
+40,9,Intern Product,1,3500.00,13000.00
+41,9,Junior Product,2,7000.00,19500.00
+42,9,Mid Product,3,13000.00,31000.00
+43,9,Senior Product,4,22000.00,46000.00

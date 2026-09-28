@@ -1,0 +1,11 @@
+department_id,department_name,budget_egp,location
+1,Engineering,329076936.00,Cairo
+2,Sales,187487152.00,Cairo
+3,Marketing,99658766.00,Giza
+4,Human Resources,66895158.00,Cairo
+5,Finance,137563313.00,New Cairo
+6,Customer Support,252487706.00,Alexandria
+7,Operations,163927925.00,Alexandria
+8,Legal,35057893.00,Cairo
+9,Product,95754393.00,New Cairo
+10,Vacant Division,0.00,Giza
