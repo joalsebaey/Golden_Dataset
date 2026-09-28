@@ -65,7 +65,6 @@ CREATE TABLE employees (
     CONSTRAINT chk_emp_commission_pct CHECK (commission_pct BETWEEN 0 AND 100),
     CONSTRAINT chk_emp_work_mode CHECK (work_mode IN ('onsite', 'remote', 'hybrid')),
     CONSTRAINT chk_emp_termination CHECK (termination_date IS NULL OR termination_date >= hire_date),
-    CONSTRAINT chk_emp_manager CHECK (manager_id IS NULL OR manager_id <> employee_id),
     CONSTRAINT fk_emp_department FOREIGN KEY (department_id) REFERENCES departments(department_id),
     CONSTRAINT fk_emp_role FOREIGN KEY (role_id) REFERENCES roles(role_id),
     CONSTRAINT fk_emp_manager FOREIGN KEY (manager_id) REFERENCES employees(employee_id)
@@ -76,14 +75,25 @@ CREATE INDEX idx_employees_role       ON employees(role_id);
 CREATE INDEX idx_employees_manager    ON employees(manager_id);
 CREATE INDEX idx_employees_active     ON employees(is_active);
 
--- Guard: commission_pct > 0 is only allowed for the Sales department
+-- Triggers for business logic validation:
+-- 1) Prevent self-managed employee (manager_id <> employee_id)
+--    Note: MySQL 8.0+ forbids CHECK constraints on AUTO_INCREMENT columns (Error 3823)
+-- 2) Guard: commission_pct > 0 is only allowed for the Sales department
 DELIMITER $$
 
 DROP TRIGGER IF EXISTS trg_employees_commission_sales_insert$$
-CREATE TRIGGER trg_employees_commission_sales_insert
+DROP TRIGGER IF EXISTS trg_employees_before_insert$$
+CREATE TRIGGER trg_employees_before_insert
 BEFORE INSERT ON employees
 FOR EACH ROW
 BEGIN
+    -- Prevent employee from being their own manager if employee_id is explicitly provided
+    IF NEW.manager_id IS NOT NULL AND NEW.employee_id IS NOT NULL AND NEW.employee_id > 0 AND NEW.manager_id = NEW.employee_id THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'manager_id cannot be equal to employee_id';
+    END IF;
+
+    -- Guard: commission_pct > 0 is only allowed for the Sales department
     IF NEW.commission_pct > 0 AND NOT EXISTS (
         SELECT 1 FROM departments d
         WHERE d.department_id = NEW.department_id AND d.department_name = 'Sales'
@@ -94,10 +104,18 @@ BEGIN
 END$$
 
 DROP TRIGGER IF EXISTS trg_employees_commission_sales_update$$
-CREATE TRIGGER trg_employees_commission_sales_update
+DROP TRIGGER IF EXISTS trg_employees_before_update$$
+CREATE TRIGGER trg_employees_before_update
 BEFORE UPDATE ON employees
 FOR EACH ROW
 BEGIN
+    -- Prevent employee from being their own manager
+    IF NEW.manager_id IS NOT NULL AND NEW.manager_id = NEW.employee_id THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'manager_id cannot be equal to employee_id';
+    END IF;
+
+    -- Guard: commission_pct > 0 is only allowed for the Sales department
     IF NEW.commission_pct > 0 AND NOT EXISTS (
         SELECT 1 FROM departments d
         WHERE d.department_id = NEW.department_id AND d.department_name = 'Sales'
