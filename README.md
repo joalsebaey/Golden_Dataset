@@ -39,6 +39,7 @@ The repository provides the canonical schema, 500,000+ realistic production reco
 │   └── employee_kpis.csv                 # 158,595 monthly KPI targets, actuals & scores
 ├── postgreSQL/                           # PostgreSQL implementation (tenant_1 schema)
 │   ├── DDL.sql                           # Governed DDL with triggers, checks & indexes
+│   ├── load_data.sql                     # Bulk dataset ingestion script & sequence synchronizer
 │   ├── test1.sql                         # Table catalog & live tuple inspection
 │   ├── test2.sql                         # 7-table comprehensive reporting JOIN
 │   ├── test3.sql                         # Attendance activity & work mode lookup
@@ -47,6 +48,7 @@ The repository provides the canonical schema, 500,000+ realistic production reco
 │   └── test6_performance_heavy_benchmark.sql # 324K row aggregation & MoM trend (EXPLAIN ANALYZE)
 ├── MySQL/                                # MySQL 8.0+ implementation (InnoDB, utf8mb4)
 │   ├── MySQL_ddl.sql                     # Governed DDL with BEFORE triggers & check constraints
+│   ├── load_data.sql                     # Bulk dataset ingestion script (LOAD DATA LOCAL INFILE)
 │   ├── test1.sql                         # Table catalog & estimated row counts
 │   ├── test 2.sql                        # 7-table comprehensive reporting JOIN
 │   ├── test3.sql                         # Attendance activity & work mode lookup
@@ -55,6 +57,7 @@ The repository provides the canonical schema, 500,000+ realistic production reco
 │   └── test6_performance_heavy_benchmark.sql # 324K row aggregation & MoM trend (EXPLAIN ANALYZE)
 ├── SQL server/                           # SQL Server 2016+ implementation (T-SQL)
 │   ├── SQL server_ddl.sql                # Governed DDL with AFTER trigger, NVARCHAR & BIT
+│   ├── load_data.sql                     # Bulk dataset ingestion script (BULK INSERT + KEEPIDENTITY)
 │   ├── test1.sql                         # sys.tables & sys.partitions row count check
 │   ├── test 2.sql                        # 7-table comprehensive reporting JOIN
 │   ├── test3.sql                         # Attendance activity & work mode lookup
@@ -281,28 +284,24 @@ The evaluation suite ([`Golden_Evaluation_Dataset.xlsx`](Golden_Evaluation_Datas
 # Connect to your PostgreSQL instance
 psql -U postgres -d postgres
 
-# 1. Run the DDL script
+# 1. Run the DDL script (creates schema tenant_1 and tables)
 \i postgreSQL/DDL.sql
 
-# 2. Ingest CSV datasets (run within psql or script)
-\copy tenant_1.departments FROM 'dataset/departments.csv' WITH (FORMAT csv, HEADER true);
-\copy tenant_1.roles FROM 'dataset/roles.csv' WITH (FORMAT csv, HEADER true);
-\copy tenant_1.employees FROM 'dataset/employees.csv' WITH (FORMAT csv, HEADER true);
-\copy tenant_1.employee_bank_accounts FROM 'dataset/employee_bank_accounts.csv' WITH (FORMAT csv, HEADER true);
-\copy tenant_1.attendance FROM 'dataset/attendance.csv' WITH (FORMAT csv, HEADER true);
-\copy tenant_1.role_permissions FROM 'dataset/role_permissions.csv' WITH (FORMAT csv, HEADER true);
-\copy tenant_1.commissions FROM 'dataset/commissions.csv' WITH (FORMAT csv, HEADER true);
-\copy tenant_1.employee_kpis FROM 'dataset/employee_kpis.csv' WITH (FORMAT csv, HEADER true);
+# 2. Ingest all 8 CSV datasets and synchronize sequences (run from repository root)
+\i postgreSQL/load_data.sql
 
 # 3. Execute test suites
 \i postgreSQL/test1.sql
+\i postgreSQL/test2.sql
+\i postgreSQL/test3.sql
 \i postgreSQL/test4_recursive_hierarchy_cte.sql
+\i postgreSQL/test5_window_analytics_cte.sql
 \i postgreSQL/test6_performance_heavy_benchmark.sql
 ```
 
 ### 2. MySQL Setup
 ```bash
-# Connect to MySQL 8.0+
+# Connect to MySQL 8.0+ with local-infile enabled
 mysql -u root -p --local-infile=1
 
 # 1. Create database and run DDL
@@ -310,19 +309,15 @@ CREATE DATABASE IF NOT EXISTS golden_hr CHARACTER SET utf8mb4 COLLATE utf8mb4_un
 USE golden_hr;
 SOURCE MySQL/MySQL_ddl.sql;
 
-# 2. Ingest CSV datasets
-LOAD DATA LOCAL INFILE 'dataset/departments.csv' INTO TABLE departments FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n' IGNORE 1 LINES;
-LOAD DATA LOCAL INFILE 'dataset/roles.csv' INTO TABLE roles FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n' IGNORE 1 LINES;
-LOAD DATA LOCAL INFILE 'dataset/employees.csv' INTO TABLE employees FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n' IGNORE 1 LINES;
-LOAD DATA LOCAL INFILE 'dataset/employee_bank_accounts.csv' INTO TABLE employee_bank_accounts FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n' IGNORE 1 LINES;
-LOAD DATA LOCAL INFILE 'dataset/attendance.csv' INTO TABLE attendance FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n' IGNORE 1 LINES;
-LOAD DATA LOCAL INFILE 'dataset/role_permissions.csv' INTO TABLE role_permissions FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n' IGNORE 1 LINES;
-LOAD DATA LOCAL INFILE 'dataset/commissions.csv' INTO TABLE commissions FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n' IGNORE 1 LINES;
-LOAD DATA LOCAL INFILE 'dataset/employee_kpis.csv' INTO TABLE employee_kpis FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n' IGNORE 1 LINES;
+# 2. Ingest all 8 CSV datasets with automatic NULL conversion
+SOURCE MySQL/load_data.sql;
 
-# 3. Run test suites
+# 3. Execute test suites
 SOURCE MySQL/test1.sql;
+SOURCE MySQL/test 2.sql;
+SOURCE MySQL/test3.sql;
 SOURCE MySQL/test4_recursive_hierarchy_cte.sql;
+SOURCE MySQL/test5_window_analytics_cte.sql;
 SOURCE MySQL/test6_performance_heavy_benchmark.sql;
 ```
 
@@ -337,20 +332,11 @@ GO
 -- 1. Execute DDL script
 -- Open and execute: SQL server/SQL server_ddl.sql
 
--- 2. Ingest CSV datasets via BULK INSERT
-BULK INSERT departments FROM 'C:\path\to\dataset\departments.csv' WITH (FORMAT = 'CSV', FIRSTROW = 2);
-BULK INSERT roles FROM 'C:\path\to\dataset\roles.csv' WITH (FORMAT = 'CSV', FIRSTROW = 2);
-BULK INSERT employees FROM 'C:\path\to\dataset\employees.csv' WITH (FORMAT = 'CSV', FIRSTROW = 2);
-BULK INSERT employee_bank_accounts FROM 'C:\path\to\dataset\employee_bank_accounts.csv' WITH (FORMAT = 'CSV', FIRSTROW = 2);
-BULK INSERT attendance FROM 'C:\path\to\dataset\attendance.csv' WITH (FORMAT = 'CSV', FIRSTROW = 2);
-BULK INSERT role_permissions FROM 'C:\path\to\dataset\role_permissions.csv' WITH (FORMAT = 'CSV', FIRSTROW = 2);
-BULK INSERT commissions FROM 'C:\path\to\dataset\commissions.csv' WITH (FORMAT = 'CSV', FIRSTROW = 2);
-BULK INSERT employee_kpis FROM 'C:\path\to\dataset\employee_kpis.csv' WITH (FORMAT = 'CSV', FIRSTROW = 2);
+-- 2. Ingest all 8 CSV datasets (BULK INSERT with KEEPIDENTITY, KEEPNULLS, UTF-8)
+-- Open and execute: SQL server/load_data.sql
 
 -- 3. Execute test suites
--- Run: SQL server/test1.sql
--- Run: SQL server/test4_recursive_hierarchy_cte.sql
--- Run: SQL server/test6_performance_heavy_benchmark.sql
+-- Open and execute: SQL server/test1.sql through test6_performance_heavy_benchmark.sql
 ```
 
 ---
