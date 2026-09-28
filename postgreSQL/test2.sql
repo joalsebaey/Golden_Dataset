@@ -3,7 +3,7 @@ SET search_path TO public;
 WITH role_perms AS (
     SELECT role_id, STRING_AGG(DISTINCT permission_name, ', ' ORDER BY permission_name) AS permissions
     FROM role_permissions
-    WHERE is_allowed = TRUE
+    WHERE is_allowed = 1
     GROUP BY role_id
 ),
 kpis AS (
@@ -28,7 +28,7 @@ SELECT
     k.period_month AS latest_kpi_period,
     k.score AS latest_kpi_score,
     COALESCE(c.total_amount, 0.00) AS total_commissions,
-    EXTRACT(YEAR FROM AGE(CURRENT_DATE, e.hire_date)) AS years_tenure,
+    EXTRACT(YEAR FROM AGE(CURRENT_DATE, e.hire_date::date)) AS years_tenure,
     e.is_active
 FROM employees e
 INNER JOIN departments d 
@@ -43,6 +43,6 @@ LEFT JOIN kpis k
     ON e.employee_id = k.employee_id
 LEFT JOIN comms c 
     ON e.employee_id = c.employee_id
-WHERE e.is_active = TRUE
+WHERE e.is_active = 1
 ORDER BY e.employee_id
 LIMIT 5;

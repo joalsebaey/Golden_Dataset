@@ -19,7 +19,7 @@ WITH RECURSIVE org_hierarchy AS (
         e.role_id,
         e.salary
     FROM employees e
-    WHERE e.manager_id IS NULL AND e.is_active = TRUE
+    WHERE e.manager_id IS NULL AND e.is_active = 1
 
     UNION ALL
 
@@ -36,7 +36,7 @@ WITH RECURSIVE org_hierarchy AS (
         e.salary
     FROM employees e
     INNER JOIN org_hierarchy oh ON e.manager_id = oh.employee_id
-    WHERE e.is_active = TRUE
+    WHERE e.is_active = 1
 ),
 direct_reports AS (
     -- Span of control calculation per manager
@@ -44,7 +44,7 @@ direct_reports AS (
         manager_id, 
         COUNT(*) AS report_count
     FROM employees
-    WHERE is_active = TRUE AND manager_id IS NOT NULL
+    WHERE is_active = 1 AND manager_id IS NOT NULL
     GROUP BY manager_id
 )
 SELECT 

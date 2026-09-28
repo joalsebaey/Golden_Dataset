@@ -57,7 +57,7 @@ CREATE TABLE employees (
                       CHECK (commission_pct BETWEEN 0 AND 100),
     hire_date         DATE          NOT NULL,
     termination_date  DATE,
-    is_active         BOOLEAN       NOT NULL DEFAULT TRUE,
+    is_active         SMALLINT      NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
     work_mode         VARCHAR(10)   NOT NULL CHECK (work_mode IN ('onsite','remote','hybrid')),
     manager_id        INT           REFERENCES employees(employee_id),
     CHECK (termination_date IS NULL OR termination_date >= hire_date),
@@ -124,7 +124,7 @@ CREATE TABLE role_permissions (
     role_id          INT          NOT NULL REFERENCES roles(role_id) ON DELETE CASCADE,
     permission_name  VARCHAR(100) NOT NULL,
     access_level     VARCHAR(20)  NOT NULL,  -- e.g. read / write / admin
-    is_allowed       BOOLEAN      NOT NULL DEFAULT FALSE,
+    is_allowed       SMALLINT     NOT NULL DEFAULT 0 CHECK (is_allowed IN (0, 1)),
     UNIQUE (role_id, permission_name)
 );
 

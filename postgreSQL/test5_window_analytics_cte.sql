@@ -15,7 +15,7 @@ WITH dept_salary_stats AS (
         MIN(salary) AS min_dept_salary,
         MAX(salary) AS max_dept_salary
     FROM employees
-    WHERE is_active = TRUE AND salary IS NOT NULL
+    WHERE is_active = 1 AND salary IS NOT NULL
     GROUP BY department_id
 ),
 emp_salary_ranking AS (
@@ -32,7 +32,7 @@ emp_salary_ranking AS (
         PERCENT_RANK() OVER (PARTITION BY e.department_id ORDER BY e.salary ASC) AS dept_salary_percentile
     FROM employees e
     INNER JOIN dept_salary_stats dss ON e.department_id = dss.department_id
-    WHERE e.is_active = TRUE AND e.salary IS NOT NULL
+    WHERE e.is_active = 1 AND e.salary IS NOT NULL
 ),
 kpi_performance AS (
     -- Employee-level KPI achievement aggregation
