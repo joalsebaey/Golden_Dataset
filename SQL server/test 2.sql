@@ -1,4 +1,4 @@
-WITH distinct_perms AS (
+;WITH distinct_perms AS (
     SELECT DISTINCT role_id, permission_name
     FROM role_permissions
     WHERE is_allowed = 1

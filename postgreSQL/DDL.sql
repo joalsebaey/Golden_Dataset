@@ -76,7 +76,7 @@ BEGIN
         SELECT 1 FROM departments d
         WHERE d.department_id = NEW.department_id AND d.department_name = 'Sales'
     ) THEN
-        RAISE EXCEPTION 'commission_pct > 0 is allowed only for Sales employees (employee_id=%)', NEW.employee_id;
+        RAISE EXCEPTION 'commission_pct > 0 is allowed only for Sales employees (email=%)', NEW.email;
     END IF;
     RETURN NEW;
 END;
@@ -110,7 +110,10 @@ CREATE TABLE attendance (
     hours_worked   NUMERIC(4,2) CHECK (hours_worked BETWEEN 0 AND 24),   -- NULL unless present
     work_mode      VARCHAR(10)  CHECK (work_mode IN ('onsite','remote','hybrid')),  -- NULL unless present
     UNIQUE (employee_id, work_date),
-    CHECK ((status = 'present') = (hours_worked IS NOT NULL AND work_mode IS NOT NULL))
+    CONSTRAINT chk_att_status_consistency CHECK (
+        (status = 'present' AND hours_worked IS NOT NULL AND work_mode IS NOT NULL) OR
+        (status <> 'present' AND hours_worked IS NULL AND work_mode IS NULL)
+    )
 );
 CREATE INDEX idx_attendance_date ON attendance(work_date);
 

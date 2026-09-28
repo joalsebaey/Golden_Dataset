@@ -74,5 +74,5 @@ INNER JOIN roles r ON esr.role_id = r.role_id
 LEFT JOIN kpi_performance kp ON esr.employee_id = kp.employee_id
 LEFT JOIN attendance_summary att ON esr.employee_id = att.employee_id
 WHERE esr.dept_salary_rank <= 3
-ORDER BY d.department_name, esr.dept_salary_rank
+ORDER BY d.department_name, esr.dept_salary_rank, esr.employee_id
 LIMIT 20;

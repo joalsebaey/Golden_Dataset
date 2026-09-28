@@ -6,7 +6,7 @@
 
 SET STATISTICS TIME, IO ON;
 
-WITH monthly_attendance AS (
+;WITH monthly_attendance AS (
     -- Heavy group-by scan across 324,449 attendance records joined with employees
     SELECT 
         e.department_id,

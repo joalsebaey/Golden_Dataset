@@ -13,6 +13,7 @@ IF OBJECT_ID('employee_bank_accounts', 'U') IS NOT NULL DROP TABLE employee_bank
 IF OBJECT_ID('employees', 'U') IS NOT NULL DROP TABLE employees;
 IF OBJECT_ID('roles', 'U') IS NOT NULL DROP TABLE roles;
 IF OBJECT_ID('departments', 'U') IS NOT NULL DROP TABLE departments;
+GO
 
 -- ---------------------------------------------------------------------
 -- 1) departments
@@ -95,10 +96,12 @@ GO
 -- ---------------------------------------------------------------------
 CREATE TABLE employee_bank_accounts (
     bank_account_id  INT IDENTITY(1,1) PRIMARY KEY,
-    employee_id      INT NOT NULL CONSTRAINT uq_bank_employee UNIQUE CONSTRAINT fk_bank_employee REFERENCES employees(employee_id) ON DELETE CASCADE,
+    employee_id      INT NOT NULL,
     bank_name        NVARCHAR(100) NOT NULL,
     iban             NVARCHAR(34) NOT NULL CONSTRAINT uq_bank_iban UNIQUE,
-    account_number   NVARCHAR(30) NOT NULL
+    account_number   NVARCHAR(30) NOT NULL,
+    CONSTRAINT uq_bank_employee UNIQUE (employee_id),
+    CONSTRAINT fk_bank_employee FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
 );
 
 
