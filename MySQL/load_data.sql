@@ -8,7 +8,7 @@
 --     mysql -u <user> -p --local-infile=1 <database> < MySQL/load_data.sql
 --   Or execute within MySQL Workbench / client with Local Infile enabled.
 -- =====================================================================
-
+SET GLOBAL local_infile = 1;
 -- Temporarily disable foreign key checks and unique checks for fast bulk loading
 SET FOREIGN_KEY_CHECKS = 0;
 SET UNIQUE_CHECKS = 0;
@@ -17,7 +17,7 @@ SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';
 -- ---------------------------------------------------------------------
 -- 1) departments
 -- ---------------------------------------------------------------------
-LOAD DATA LOCAL INFILE 'dataset/departments.csv'
+LOAD DATA LOCAL INFILE 'C:\\Users\\yousef\\Dropbox\\PC\\Downloads\\golden database\\dataset\\departments.csv'
 INTO TABLE departments
 CHARACTER SET utf8mb4
 FIELDS TERMINATED BY ',' ENCLOSED BY '"' ESCAPED BY '\\'
