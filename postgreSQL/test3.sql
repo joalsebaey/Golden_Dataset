@@ -1,4 +1,4 @@
-SET search_path TO tenant_1;
+SET search_path TO public;
 
 SELECT 
     e.employee_id,

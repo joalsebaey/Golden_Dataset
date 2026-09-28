@@ -1,4 +1,4 @@
-SET search_path TO tenant_1;
+SET search_path TO public;
 
 WITH role_perms AS (
     SELECT role_id, STRING_AGG(DISTINCT permission_name, ', ' ORDER BY permission_name) AS permissions

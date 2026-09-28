@@ -37,7 +37,7 @@ The repository provides the canonical schema, 500,000+ realistic production reco
 │   ├── role_permissions.csv              # Granular RBAC permissions per role
 │   ├── commissions.csv                   # Monthly Sales commissions & sales amounts
 │   └── employee_kpis.csv                 # 158,595 monthly KPI targets, actuals & scores
-├── postgreSQL/                           # PostgreSQL implementation (tenant_1 schema)
+├── postgreSQL/                           # PostgreSQL implementation (public schema)
 │   ├── DDL.sql                           # Governed DDL with triggers, checks & indexes
 │   ├── load_data.sql                     # Bulk dataset ingestion script & sequence synchronizer
 │   ├── test1.sql                         # Table catalog & live tuple inspection
@@ -203,7 +203,7 @@ erDiagram
 The repository implements dedicated, idiomatic DDL and test suites for three major RDBMS engines:
 
 ### 1. PostgreSQL (`postgreSQL/`)
-- Encapsulated within `tenant_1` isolated tenant schema (`CREATE SCHEMA IF NOT EXISTS tenant_1; SET search_path TO tenant_1;`).
+- Deployed directly into PostgreSQL's standard `public` schema for out-of-the-box compatibility without custom search paths.
 - Native `SERIAL` / `BIGSERIAL` auto-incrementing sequences.
 - PL/pgSQL function & trigger `trg_commission_sales_only()` enforcing Sales-only commissions.
 - Native `||` string concatenation, `EXTRACT(YEAR FROM AGE(...))`, and date interval syntax.
@@ -284,7 +284,7 @@ The evaluation suite ([`Golden_Evaluation_Dataset.xlsx`](Golden_Evaluation_Datas
 # Connect to your PostgreSQL instance
 psql -U postgres -d postgres
 
-# 1. Run the DDL script (creates schema tenant_1 and tables)
+# 1. Run the DDL script (creates tables in public schema)
 \i postgreSQL/DDL.sql
 
 # 2. Ingest all 8 CSV datasets and synchronize sequences (run from repository root)

@@ -1,11 +1,10 @@
 -- =====================================================================
--- HR Schema (PostgreSQL) - Single tenant, schema-per-tenant (no tenant_id)
--- Tenant: tenant_1 | ~5,000 employees | ~500k rows estimated
+-- HR Schema (PostgreSQL) - Default public schema
+-- ~5,000 employees | ~500k rows estimated
 -- Governed Schema aligned with schema.jpeg, dataset (*.csv), and Golden Evaluation Dataset
 -- =====================================================================
 
-CREATE SCHEMA IF NOT EXISTS tenant_1;
-SET search_path TO tenant_1;
+SET search_path TO public;
 
 -- Clean teardown in reverse dependency order
 DROP TABLE IF EXISTS employee_kpis CASCADE;

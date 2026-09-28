@@ -4,7 +4,7 @@
 -- cross-table aggregations across employees, KPIs, and 324K attendance records.
 -- =====================================================================
 
-SET search_path TO tenant_1;
+SET search_path TO public;
 
 WITH dept_salary_stats AS (
     -- Baseline departmental compensation statistics

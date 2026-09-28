@@ -1,40 +1,40 @@
 -- =====================================================================
 -- PostgreSQL Dataset Ingestion Script
--- Loads 8 governed CSV datasets into tenant_1 schema in correct FK order
+-- Loads 8 governed CSV datasets into public schema in correct FK order
 -- Expected Total Rows: ~500,526 rows across 8 tables
 -- =====================================================================
 
-SET search_path TO tenant_1;
+SET search_path TO public;
 
 -- ---------------------------------------------------------------------
--- Option A: Running via psql command-line client (\copy)
+-- Running via psql command-line client (\copy)
 -- Execute from the repository root directory:
 --   psql -U <username> -d <database> -f postgreSQL/load_data.sql
 -- ---------------------------------------------------------------------
 
 \echo '>>> 1/8 Loading departments...'
-\copy tenant_1.departments(department_id, department_name, budget_egp, location) FROM 'dataset/departments.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
+\copy departments(department_id, department_name, budget_egp, location) FROM 'dataset/departments.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
 
 \echo '>>> 2/8 Loading roles...'
-\copy tenant_1.roles(role_id, department_id, role_title, level, salary_band_min, salary_band_max) FROM 'dataset/roles.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
+\copy roles(role_id, department_id, role_title, level, salary_band_min, salary_band_max) FROM 'dataset/roles.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
 
 \echo '>>> 3/8 Loading employees (5,000 rows)...'
-\copy tenant_1.employees(employee_id, first_name, last_name, email, department_id, role_id, salary, commission_pct, hire_date, termination_date, is_active, work_mode, manager_id) FROM 'dataset/employees.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
+\copy employees(employee_id, first_name, last_name, email, department_id, role_id, salary, commission_pct, hire_date, termination_date, is_active, work_mode, manager_id) FROM 'dataset/employees.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
 
 \echo '>>> 4/8 Loading employee_bank_accounts (5,000 rows)...'
-\copy tenant_1.employee_bank_accounts(bank_account_id, employee_id, bank_name, iban, account_number) FROM 'dataset/employee_bank_accounts.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
+\copy employee_bank_accounts(bank_account_id, employee_id, bank_name, iban, account_number) FROM 'dataset/employee_bank_accounts.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
 
 \echo '>>> 5/8 Loading attendance (324,449 rows)...'
-\copy tenant_1.attendance(attendance_id, employee_id, work_date, status, hours_worked, work_mode) FROM 'dataset/attendance.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
+\copy attendance(attendance_id, employee_id, work_date, status, hours_worked, work_mode) FROM 'dataset/attendance.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
 
 \echo '>>> 6/8 Loading role_permissions (83 rows)...'
-\copy tenant_1.role_permissions(permission_id, role_id, permission_name, access_level, is_allowed) FROM 'dataset/role_permissions.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
+\copy role_permissions(permission_id, role_id, permission_name, access_level, is_allowed) FROM 'dataset/role_permissions.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
 
 \echo '>>> 7/8 Loading commissions (7,304 rows)...'
-\copy tenant_1.commissions(commission_id, employee_id, period_month, sales_amount_egp, commission_pct, commission_amount) FROM 'dataset/commissions.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
+\copy commissions(commission_id, employee_id, period_month, sales_amount_egp, commission_pct, commission_amount) FROM 'dataset/commissions.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
 
 \echo '>>> 8/8 Loading employee_kpis (141,310 rows)...'
-\copy tenant_1.employee_kpis(kpi_id, employee_id, period_month, kpi_name, target, actual, score) FROM 'dataset/employee_kpis.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
+\copy employee_kpis(kpi_id, employee_id, period_month, kpi_name, target, actual, score) FROM 'dataset/employee_kpis.csv' WITH (FORMAT csv, HEADER true, NULL '', ENCODING 'UTF8');
 
 -- ---------------------------------------------------------------------
 -- Synchronize SERIAL / BIGSERIAL sequences to max IDs

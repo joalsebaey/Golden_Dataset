@@ -4,7 +4,7 @@
 -- hierarchy depth calculation, lineage path concatenation, and direct report aggregation.
 -- =====================================================================
 
-SET search_path TO tenant_1;
+SET search_path TO public;
 
 WITH RECURSIVE org_hierarchy AS (
     -- Anchor member: Top-level directors/executives (no manager assigned)

@@ -3,7 +3,7 @@
 -- =====================================================================
 
 -- 1. إضافة public إلى مسار البحث حتى يعثر المحرك على الجداول أياً كان مكانها
-SET search_path TO tenant_1, public;
+SET search_path TO public;
 
 EXPLAIN (ANALYZE, BUFFERS)
 WITH monthly_attendance AS (
