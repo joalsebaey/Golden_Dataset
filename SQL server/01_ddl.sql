@@ -2,9 +2,29 @@
 -- 01_ddl.sql - SQL Server DDL (Data Definition Language)
 -- Enterprise HR Canonical Schema (Phase 1 Benchmark)
 -- Compatible with SQL Server 2016+ (T-SQL, Unicode NVARCHAR, IDENTITY)
+--
+-- IMPORT-FRIENDLY DESIGN:
+--   Creates all 8 tables with PRIMARY KEY, UNIQUE, CHECK constraints,
+--   and indexes - WITHOUT foreign keys and WITHOUT triggers.
+--   This allows you to import all 8 CSV files in ANY order (via DBeaver
+--   Data Transfer wizard, SSMS Import Wizard, or BULK INSERT) without
+--   foreign key or self-referencing manager_id errors.
+--   Then run 02_load_data.sql to add all 9 foreign keys and the trigger.
 -- =====================================================================
 
--- Clean teardown in reverse dependency order
+-- Drop any existing foreign keys first so teardown never fails on order
+DECLARE @drop_fks NVARCHAR(MAX) = N'';
+SELECT @drop_fks += N'ALTER TABLE ' + QUOTENAME(OBJECT_SCHEMA_NAME(parent_object_id))
+                 + N'.' + QUOTENAME(OBJECT_NAME(parent_object_id))
+                 + N' DROP CONSTRAINT ' + QUOTENAME(name) + N';' + CHAR(13)
+FROM sys.foreign_keys
+WHERE OBJECT_NAME(parent_object_id) IN (
+    'departments','roles','employees','employee_bank_accounts',
+    'attendance','role_permissions','commissions','employee_kpis'
+);
+IF @drop_fks <> N'' EXEC sp_executesql @drop_fks;
+GO
+
 IF OBJECT_ID('employee_kpis', 'U') IS NOT NULL DROP TABLE employee_kpis;
 IF OBJECT_ID('commissions', 'U') IS NOT NULL DROP TABLE commissions;
 IF OBJECT_ID('role_permissions', 'U') IS NOT NULL DROP TABLE role_permissions;
@@ -28,10 +48,11 @@ GO
 
 -- ---------------------------------------------------------------------
 -- 2) roles
+-- FK (added in 02_load_data.sql): department_id -> departments
 -- ---------------------------------------------------------------------
 CREATE TABLE roles (
     role_id          INT IDENTITY(1,1) PRIMARY KEY,
-    department_id    INT NOT NULL CONSTRAINT fk_roles_department REFERENCES departments(department_id),
+    department_id    INT NOT NULL,
     role_title       NVARCHAR(100) NOT NULL,
     level            SMALLINT NOT NULL CONSTRAINT chk_roles_level CHECK (level BETWEEN 1 AND 10),
     salary_band_min  DECIMAL(12,2) NOT NULL,
@@ -45,21 +66,23 @@ GO
 
 -- ---------------------------------------------------------------------
 -- 3) employees
+-- FKs (added in 02_load_data.sql):
+--   department_id -> departments, role_id -> roles, manager_id -> employees
 -- ---------------------------------------------------------------------
 CREATE TABLE employees (
     employee_id       INT IDENTITY(1,1) PRIMARY KEY,
     first_name        NVARCHAR(100) NOT NULL,
     last_name         NVARCHAR(100) NOT NULL,
     email             NVARCHAR(255) NOT NULL CONSTRAINT uq_employees_email UNIQUE,
-    department_id     INT NOT NULL CONSTRAINT fk_emp_department REFERENCES departments(department_id),
-    role_id           INT NOT NULL CONSTRAINT fk_emp_role REFERENCES roles(role_id),
+    department_id     INT NOT NULL,
+    role_id           INT NOT NULL,
     salary            DECIMAL(12,2) NULL CONSTRAINT chk_emp_salary CHECK (salary IS NULL OR salary >= 0),
     commission_pct    DECIMAL(5,2) NOT NULL DEFAULT 0.00 CONSTRAINT chk_emp_commission_pct CHECK (commission_pct BETWEEN 0 AND 100),
     hire_date         DATE NOT NULL,
     termination_date  DATE NULL,
     is_active         BIT NOT NULL DEFAULT 1,
     work_mode         NVARCHAR(10) NOT NULL CONSTRAINT chk_emp_work_mode CHECK (work_mode IN ('onsite', 'remote', 'hybrid')),
-    manager_id        INT NULL CONSTRAINT fk_emp_manager REFERENCES employees(employee_id),
+    manager_id        INT NULL,
     CONSTRAINT chk_emp_termination CHECK (termination_date IS NULL OR termination_date >= hire_date),
     CONSTRAINT chk_emp_manager CHECK (manager_id IS NULL OR manager_id <> employee_id)
 );
@@ -71,34 +94,13 @@ CREATE NONCLUSTERED INDEX idx_employees_manager    ON employees(manager_id);
 CREATE NONCLUSTERED INDEX idx_employees_active     ON employees(is_active);
 GO
 
--- Guard: commission_pct > 0 is allowed ONLY for the Sales department
-CREATE OR ALTER TRIGGER trg_employees_commission_sales_only
-ON employees
-AFTER INSERT, UPDATE
-AS
-BEGIN
-    SET NOCOUNT ON;
-    IF EXISTS (
-        SELECT 1
-        FROM inserted i
-        INNER JOIN departments d ON i.department_id = d.department_id
-        WHERE i.commission_pct > 0 AND d.department_name <> 'Sales'
-    )
-    BEGIN
-        RAISERROR ('commission_pct > 0 is allowed only for employees in the Sales department.', 16, 1);
-        ROLLBACK TRANSACTION;
-        RETURN;
-    END;
-END;
-GO
-
 -- ---------------------------------------------------------------------
--- 4) employee_bank_accounts
--- Strictly 1-to-1 relationship with employees
+-- 4) employee_bank_accounts (1-to-1 with employees)
+-- FK (added in 02_load_data.sql): employee_id -> employees ON DELETE CASCADE
 -- ---------------------------------------------------------------------
 CREATE TABLE employee_bank_accounts (
     bank_account_id  INT IDENTITY(1,1) PRIMARY KEY,
-    employee_id      INT NOT NULL CONSTRAINT uq_bank_emp UNIQUE CONSTRAINT fk_bank_employee REFERENCES employees(employee_id) ON DELETE CASCADE,
+    employee_id      INT NOT NULL CONSTRAINT uq_bank_emp UNIQUE,
     bank_name        NVARCHAR(100) NOT NULL,
     iban             NVARCHAR(34) NOT NULL CONSTRAINT uq_bank_iban UNIQUE,
     account_number   NVARCHAR(30) NOT NULL CONSTRAINT uq_bank_acc UNIQUE
@@ -107,21 +109,19 @@ GO
 
 -- ---------------------------------------------------------------------
 -- 5) attendance
+-- FK (added in 02_load_data.sql): employee_id -> employees ON DELETE CASCADE
 -- ---------------------------------------------------------------------
 CREATE TABLE attendance (
     attendance_id  BIGINT IDENTITY(1,1) PRIMARY KEY,
-    employee_id    INT NOT NULL CONSTRAINT fk_att_employee REFERENCES employees(employee_id) ON DELETE CASCADE,
+    employee_id    INT NOT NULL,
     work_date      DATE NOT NULL,
     status         NVARCHAR(15) NOT NULL,
     hours_worked   DECIMAL(4,2) NULL,
     work_mode      NVARCHAR(10) NULL,
     CONSTRAINT uq_att_emp_date UNIQUE (employee_id, work_date),
-    CONSTRAINT chk_att_hours CHECK (hours_worked IS NULL OR (hours_worked BETWEEN 0 AND 24)),
-    CONSTRAINT chk_att_mode CHECK (work_mode IS NULL OR work_mode IN ('onsite', 'remote', 'hybrid')),
-    CONSTRAINT chk_att_status_consistency CHECK (
-        (status = 'present' AND hours_worked IS NOT NULL AND work_mode IS NOT NULL) OR
-        (status <> 'present' AND hours_worked IS NULL AND work_mode IS NULL)
-    )
+    CONSTRAINT chk_att_hours CHECK (hours_worked IS NULL OR (hours_worked BETWEEN 0 AND 24))
+    -- chk_att_mode and chk_att_status_consistency are added in 02_load_data.sql
+    -- after normalizing any GUI-imported empty string '' on work_mode to NULL.
 );
 GO
 
@@ -131,10 +131,11 @@ GO
 
 -- ---------------------------------------------------------------------
 -- 6) role_permissions
+-- FK (added in 02_load_data.sql): role_id -> roles ON DELETE CASCADE
 -- ---------------------------------------------------------------------
 CREATE TABLE role_permissions (
     permission_id    INT IDENTITY(1,1) PRIMARY KEY,
-    role_id          INT NOT NULL CONSTRAINT fk_perm_role REFERENCES roles(role_id) ON DELETE CASCADE,
+    role_id          INT NOT NULL,
     permission_name  NVARCHAR(100) NOT NULL,
     access_level     NVARCHAR(20) NOT NULL CONSTRAINT chk_perm_access CHECK (access_level IN ('read', 'write', 'admin')),
     is_allowed       BIT NOT NULL DEFAULT 0,
@@ -147,10 +148,11 @@ GO
 
 -- ---------------------------------------------------------------------
 -- 7) commissions
+-- FK (added in 02_load_data.sql): employee_id -> employees ON DELETE CASCADE
 -- ---------------------------------------------------------------------
 CREATE TABLE commissions (
     commission_id      BIGINT IDENTITY(1,1) PRIMARY KEY,
-    employee_id        INT NOT NULL CONSTRAINT fk_comm_employee REFERENCES employees(employee_id) ON DELETE CASCADE,
+    employee_id        INT NOT NULL,
     period_month       DATE NOT NULL,
     sales_amount_egp   DECIMAL(14,2) NOT NULL CONSTRAINT chk_comm_sales CHECK (sales_amount_egp >= 0),
     commission_pct     DECIMAL(5,2) NOT NULL DEFAULT 5.00 CONSTRAINT chk_comm_pct CHECK (commission_pct BETWEEN 0 AND 100),
@@ -167,10 +169,11 @@ GO
 
 -- ---------------------------------------------------------------------
 -- 8) employee_kpis
+-- FK (added in 02_load_data.sql): employee_id -> employees ON DELETE CASCADE
 -- ---------------------------------------------------------------------
 CREATE TABLE employee_kpis (
     kpi_id        BIGINT IDENTITY(1,1) PRIMARY KEY,
-    employee_id   INT NOT NULL CONSTRAINT fk_kpi_employee REFERENCES employees(employee_id) ON DELETE CASCADE,
+    employee_id   INT NOT NULL,
     period_month  DATE NOT NULL,
     kpi_name      NVARCHAR(100) NOT NULL,
     target        DECIMAL(14,2) NOT NULL,
@@ -185,3 +188,6 @@ CREATE NONCLUSTERED INDEX idx_kpis_period ON employee_kpis(period_month);
 CREATE NONCLUSTERED INDEX idx_kpis_employee ON employee_kpis(employee_id);
 CREATE NONCLUSTERED INDEX idx_kpis_name ON employee_kpis(kpi_name);
 GO
+
+-- Tables are ready. Import the 8 CSV files in ANY order,
+-- then run 02_load_data.sql to add all foreign keys and the trigger.

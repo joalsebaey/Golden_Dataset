@@ -33,6 +33,7 @@ DROP TABLE IF EXISTS employees CASCADE;
 DROP TABLE IF EXISTS roles CASCADE;
 DROP TABLE IF EXISTS departments CASCADE;
 DROP FUNCTION IF EXISTS trg_commission_sales_only() CASCADE;
+DROP FUNCTION IF EXISTS trg_attendance_normalize_nulls() CASCADE;
 
 -- ---------------------------------------------------------------------
 -- 1) departments
@@ -123,6 +124,20 @@ CREATE TABLE attendance (
         (status <> 'present' AND hours_worked IS NULL AND work_mode IS NULL)
     )
 );
+
+-- Auto-convert empty string '' to NULL on attendance.work_mode so GUI CSV importers
+-- (like DBeaver Data Transfer with default settings) never fail on leave/absent rows.
+CREATE OR REPLACE FUNCTION trg_attendance_normalize_nulls() RETURNS trigger AS $$
+BEGIN
+    NEW.work_mode := NULLIF(BTRIM(NEW.work_mode), '');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS attendance_normalize_nulls ON attendance;
+CREATE TRIGGER attendance_normalize_nulls
+    BEFORE INSERT OR UPDATE ON attendance
+    FOR EACH ROW EXECUTE FUNCTION trg_attendance_normalize_nulls();
 
 CREATE INDEX idx_attendance_date ON attendance(work_date);
 -- NOTE: (employee_id, work_date) lookups are served by the UNIQUE constraint index above.
