@@ -1,7 +1,7 @@
 -- =====================================================================
--- HR Schema (PostgreSQL) - Default public schema
--- ~5,000 employees | ~500k rows estimated
--- Governed Schema aligned with schema.jpeg, dataset (*.csv), and Golden Evaluation Dataset
+-- 01_ddl.sql - PostgreSQL DDL (Data Definition Language)
+-- Enterprise HR Canonical Schema (Phase 1 Benchmark)
+-- Compatible with PostgreSQL 13+ (Public Schema)
 -- =====================================================================
 
 SET search_path TO public;
@@ -18,6 +18,7 @@ DROP TABLE IF EXISTS departments CASCADE;
 
 -- ---------------------------------------------------------------------
 -- 1) departments
+-- Operational organizational units with allocated budgets
 -- ---------------------------------------------------------------------
 CREATE TABLE departments (
     department_id    SERIAL PRIMARY KEY,
@@ -28,6 +29,7 @@ CREATE TABLE departments (
 
 -- ---------------------------------------------------------------------
 -- 2) roles
+-- Job positions mapped to departments with seniority levels and salary bands
 -- ---------------------------------------------------------------------
 CREATE TABLE roles (
     role_id          SERIAL PRIMARY KEY,
@@ -38,12 +40,12 @@ CREATE TABLE roles (
     salary_band_max  NUMERIC(12,2) NOT NULL,
     CHECK (salary_band_max >= salary_band_min)
 );
+
 CREATE INDEX idx_roles_department ON roles(department_id);
 
 -- ---------------------------------------------------------------------
 -- 3) employees
---    first_name / last_name contain Arabic or English (UTF-8)
---    commission_pct: 5.00 for Sales employees, 0 for everyone else
+-- Core personnel with Arabic/English names (UTF-8), hierarchy, and work mode
 -- ---------------------------------------------------------------------
 CREATE TABLE employees (
     employee_id       SERIAL PRIMARY KEY,
@@ -52,23 +54,23 @@ CREATE TABLE employees (
     email             VARCHAR(255)  NOT NULL UNIQUE,
     department_id     INT           NOT NULL REFERENCES departments(department_id),
     role_id           INT           NOT NULL REFERENCES roles(role_id),
-    salary            NUMERIC(12,2) CHECK (salary >= 0),   -- NULL allowed (NULL-handling fixture)
-    commission_pct    NUMERIC(5,2)  NOT NULL DEFAULT 0
-                      CHECK (commission_pct BETWEEN 0 AND 100),
+    salary            NUMERIC(12,2) CHECK (salary IS NULL OR salary >= 0),   -- NULL allowed for null-handling testing
+    commission_pct    NUMERIC(5,2)  NOT NULL DEFAULT 0.00 CHECK (commission_pct BETWEEN 0 AND 100),
     hire_date         DATE          NOT NULL,
     termination_date  DATE,
     is_active         SMALLINT      NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
-    work_mode         VARCHAR(10)   NOT NULL CHECK (work_mode IN ('onsite','remote','hybrid')),
+    work_mode         VARCHAR(10)   NOT NULL CHECK (work_mode IN ('onsite', 'remote', 'hybrid')),
     manager_id        INT           REFERENCES employees(employee_id),
     CHECK (termination_date IS NULL OR termination_date >= hire_date),
     CHECK (manager_id IS NULL OR manager_id <> employee_id)
 );
+
 CREATE INDEX idx_employees_department ON employees(department_id);
 CREATE INDEX idx_employees_role       ON employees(role_id);
 CREATE INDEX idx_employees_manager    ON employees(manager_id);
 CREATE INDEX idx_employees_active     ON employees(is_active);
 
--- Guard: commission_pct > 0 is only allowed for the Sales department
+-- Business rule trigger: commission_pct > 0 is allowed ONLY for Sales department
 CREATE OR REPLACE FUNCTION trg_commission_sales_only() RETURNS trigger AS $$
 BEGIN
     IF NEW.commission_pct > 0 AND NOT EXISTS (
@@ -87,49 +89,57 @@ CREATE TRIGGER employees_commission_sales_only
     FOR EACH ROW EXECUTE FUNCTION trg_commission_sales_only();
 
 -- ---------------------------------------------------------------------
--- 4) employee_bank_accounts (1-to-1 relationship with employees)
+-- 4) employee_bank_accounts
+-- Strictly 1-to-1 relationship with employees; banking IBAN and account numbers
 -- ---------------------------------------------------------------------
 CREATE TABLE employee_bank_accounts (
     bank_account_id  SERIAL PRIMARY KEY,
     employee_id      INT          NOT NULL UNIQUE REFERENCES employees(employee_id) ON DELETE CASCADE,
     bank_name        VARCHAR(100) NOT NULL,
     iban             VARCHAR(34)  NOT NULL UNIQUE,
-    account_number   VARCHAR(30)  NOT NULL
+    account_number   VARCHAR(30)  NOT NULL UNIQUE
 );
-
 
 -- ---------------------------------------------------------------------
 -- 5) attendance
+-- Daily attendance records enforcing strict presence/hours consistency
 -- ---------------------------------------------------------------------
 CREATE TABLE attendance (
     attendance_id  BIGSERIAL PRIMARY KEY,
     employee_id    INT          NOT NULL REFERENCES employees(employee_id) ON DELETE CASCADE,
     work_date      DATE         NOT NULL,
-    status         VARCHAR(15)  NOT NULL,   -- e.g. present / absent / leave
-    hours_worked   NUMERIC(4,2) CHECK (hours_worked BETWEEN 0 AND 24),   -- NULL unless present
-    work_mode      VARCHAR(10)  CHECK (work_mode IN ('onsite','remote','hybrid')),  -- NULL unless present
+    status         VARCHAR(15)  NOT NULL,   -- 'present', 'absent', 'leave'
+    hours_worked   NUMERIC(4,2) CHECK (hours_worked IS NULL OR (hours_worked BETWEEN 0 AND 24)),
+    work_mode      VARCHAR(10)  CHECK (work_mode IS NULL OR work_mode IN ('onsite', 'remote', 'hybrid')),
     UNIQUE (employee_id, work_date),
     CONSTRAINT chk_att_status_consistency CHECK (
         (status = 'present' AND hours_worked IS NOT NULL AND work_mode IS NOT NULL) OR
         (status <> 'present' AND hours_worked IS NULL AND work_mode IS NULL)
     )
 );
+
 CREATE INDEX idx_attendance_date ON attendance(work_date);
+CREATE INDEX idx_attendance_emp_date ON attendance(employee_id, work_date);
 
 -- ---------------------------------------------------------------------
 -- 6) role_permissions
+-- RBAC permissions per role with defined access levels
 -- ---------------------------------------------------------------------
 CREATE TABLE role_permissions (
     permission_id    SERIAL PRIMARY KEY,
     role_id          INT          NOT NULL REFERENCES roles(role_id) ON DELETE CASCADE,
     permission_name  VARCHAR(100) NOT NULL,
-    access_level     VARCHAR(20)  NOT NULL,  -- e.g. read / write / admin
+    access_level     VARCHAR(20)  NOT NULL CHECK (access_level IN ('read', 'write', 'admin')),
     is_allowed       SMALLINT     NOT NULL DEFAULT 0 CHECK (is_allowed IN (0, 1)),
     UNIQUE (role_id, permission_name)
 );
 
+CREATE INDEX idx_role_permissions_role ON role_permissions(role_id);
+
 -- ---------------------------------------------------------------------
--- 7) commissions - actual monthly commission for Sales employees
+-- 7) commissions
+-- Monthly sales commissions for Sales reps; period_month always day 1
+-- Enforces exact mathematical rounding: sales_amount_egp * commission_pct / 100
 -- ---------------------------------------------------------------------
 CREATE TABLE commissions (
     commission_id      BIGSERIAL PRIMARY KEY,
@@ -141,10 +151,13 @@ CREATE TABLE commissions (
     UNIQUE (employee_id, period_month),
     CHECK (commission_amount = ROUND(sales_amount_egp * commission_pct / 100, 2))
 );
+
 CREATE INDEX idx_commissions_period ON commissions(period_month);
+CREATE INDEX idx_commissions_employee ON commissions(employee_id);
 
 -- ---------------------------------------------------------------------
--- 8) employee_kpis - flexible monthly KPIs for all departments
+-- 8) employee_kpis
+-- Monthly KPI targets, actual achievements, and bounded scores (0-100)
 -- ---------------------------------------------------------------------
 CREATE TABLE employee_kpis (
     kpi_id        BIGSERIAL PRIMARY KEY,
@@ -156,5 +169,7 @@ CREATE TABLE employee_kpis (
     score         NUMERIC(5,2)  NOT NULL CHECK (score BETWEEN 0 AND 100),
     UNIQUE (employee_id, period_month, kpi_name)
 );
-CREATE INDEX idx_kpis_period   ON employee_kpis(period_month);
-CREATE INDEX idx_kpis_name     ON employee_kpis(kpi_name);
+
+CREATE INDEX idx_kpis_period ON employee_kpis(period_month);
+CREATE INDEX idx_kpis_employee ON employee_kpis(employee_id);
+CREATE INDEX idx_kpis_name ON employee_kpis(kpi_name);

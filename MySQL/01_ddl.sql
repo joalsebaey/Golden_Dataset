@@ -1,6 +1,6 @@
 -- =====================================================================
--- HR Schema (MySQL) - Single tenant
--- Governed Schema aligned with schema.jpeg, dataset (*.csv), and Golden Evaluation Dataset
+-- 01_ddl.sql - MySQL DDL (Data Definition Language)
+-- Enterprise HR Canonical Schema (Phase 1 Benchmark)
 -- Compatible with MySQL 8.0+ (InnoDB, UTF8MB4)
 -- =====================================================================
 
@@ -44,8 +44,6 @@ CREATE INDEX idx_roles_department ON roles(department_id);
 
 -- ---------------------------------------------------------------------
 -- 3) employees
---    first_name / last_name contain Arabic or English (utf8mb4)
---    commission_pct: 5.00 for Sales employees, 0 for everyone else
 -- ---------------------------------------------------------------------
 CREATE TABLE employees (
     employee_id       INT AUTO_INCREMENT PRIMARY KEY,
@@ -54,7 +52,7 @@ CREATE TABLE employees (
     email             VARCHAR(255) NOT NULL UNIQUE,
     department_id     INT NOT NULL,
     role_id           INT NOT NULL,
-    salary            DECIMAL(12,2) NULL,   -- NULL allowed (NULL-handling fixture)
+    salary            DECIMAL(12,2) NULL,   -- NULL allowed for null-handling testing
     commission_pct    DECIMAL(5,2) NOT NULL DEFAULT 0.00,
     hire_date         DATE NOT NULL,
     termination_date  DATE NULL,
@@ -75,85 +73,89 @@ CREATE INDEX idx_employees_role       ON employees(role_id);
 CREATE INDEX idx_employees_manager    ON employees(manager_id);
 CREATE INDEX idx_employees_active     ON employees(is_active);
 
--- Triggers for business logic validation:
--- 1) Prevent self-managed employee (manager_id <> employee_id)
---    Note: MySQL 8.0+ forbids CHECK constraints on AUTO_INCREMENT columns (Error 3823)
--- 2) Guard: commission_pct > 0 is only allowed for the Sales department
-DELIMITER $$
+-- Triggers for MySQL Business Logic Validation:
+-- 1) Prevent self-managed employee (manager_id = employee_id)
+-- 2) Guard: commission_pct > 0 is allowed ONLY for Sales department
+DELIMITER //
 
-DROP TRIGGER IF EXISTS trg_employees_commission_sales_insert$$
-DROP TRIGGER IF EXISTS trg_employees_before_insert$$
 CREATE TRIGGER trg_employees_before_insert
 BEFORE INSERT ON employees
 FOR EACH ROW
 BEGIN
-    -- Prevent employee from being their own manager if employee_id is explicitly provided
-    IF NEW.manager_id IS NOT NULL AND NEW.employee_id IS NOT NULL AND NEW.employee_id > 0 AND NEW.manager_id = NEW.employee_id THEN
+    DECLARE v_dept_name VARCHAR(100);
+
+    -- Guard: manager_id <> employee_id
+    IF NEW.manager_id IS NOT NULL AND NEW.employee_id IS NOT NULL AND NEW.manager_id = NEW.employee_id THEN
         SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'manager_id cannot be equal to employee_id';
+            SET MESSAGE_TEXT = 'An employee cannot be their own manager (manager_id = employee_id)';
     END IF;
 
-    -- Guard: commission_pct > 0 is only allowed for the Sales department
-    IF NEW.commission_pct > 0 AND NOT EXISTS (
-        SELECT 1 FROM departments d
-        WHERE d.department_id = NEW.department_id AND d.department_name = 'Sales'
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'commission_pct > 0 is allowed only for Sales employees';
-    END IF;
-END$$
+    -- Guard: commission_pct > 0 Sales only
+    IF NEW.commission_pct > 0 THEN
+        SELECT department_name INTO v_dept_name
+        FROM departments
+        WHERE department_id = NEW.department_id;
 
-DROP TRIGGER IF EXISTS trg_employees_commission_sales_update$$
-DROP TRIGGER IF EXISTS trg_employees_before_update$$
+        IF v_dept_name IS NULL OR v_dept_name <> 'Sales' THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'commission_pct > 0 is allowed only for Sales department employees';
+        END IF;
+    END IF;
+END//
+
 CREATE TRIGGER trg_employees_before_update
 BEFORE UPDATE ON employees
 FOR EACH ROW
 BEGIN
-    -- Prevent employee from being their own manager
+    DECLARE v_dept_name VARCHAR(100);
+
+    -- Guard: manager_id <> employee_id
     IF NEW.manager_id IS NOT NULL AND NEW.manager_id = NEW.employee_id THEN
         SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'manager_id cannot be equal to employee_id';
+            SET MESSAGE_TEXT = 'An employee cannot be their own manager (manager_id = employee_id)';
     END IF;
 
-    -- Guard: commission_pct > 0 is only allowed for the Sales department
-    IF NEW.commission_pct > 0 AND NOT EXISTS (
-        SELECT 1 FROM departments d
-        WHERE d.department_id = NEW.department_id AND d.department_name = 'Sales'
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'commission_pct > 0 is allowed only for Sales employees';
+    -- Guard: commission_pct > 0 Sales only
+    IF NEW.commission_pct > 0 THEN
+        SELECT department_name INTO v_dept_name
+        FROM departments
+        WHERE department_id = NEW.department_id;
+
+        IF v_dept_name IS NULL OR v_dept_name <> 'Sales' THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'commission_pct > 0 is allowed only for Sales department employees';
+        END IF;
     END IF;
-END$$
+END//
 
 DELIMITER ;
 
 -- ---------------------------------------------------------------------
--- 4) employee_bank_accounts (1-to-1 relationship with employees)
+-- 4) employee_bank_accounts
+-- Strictly 1-to-1 relationship with employees
 -- ---------------------------------------------------------------------
 CREATE TABLE employee_bank_accounts (
     bank_account_id  INT AUTO_INCREMENT PRIMARY KEY,
     employee_id      INT NOT NULL UNIQUE,
     bank_name        VARCHAR(100) NOT NULL,
     iban             VARCHAR(34) NOT NULL UNIQUE,
-    account_number   VARCHAR(30) NOT NULL,
+    account_number   VARCHAR(30) NOT NULL UNIQUE,
     CONSTRAINT fk_bank_employee FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-
 
 -- ---------------------------------------------------------------------
 -- 5) attendance
 -- ---------------------------------------------------------------------
 CREATE TABLE attendance (
-    attendance_id   BIGINT AUTO_INCREMENT PRIMARY KEY,
-    employee_id     INT NOT NULL,
-    work_date       DATE NOT NULL,
-    status          VARCHAR(15) NOT NULL,   -- e.g. present / absent / leave
-    hours_worked    DECIMAL(4,2) NULL,      -- NULL unless present
-    work_mode       VARCHAR(10) NULL,       -- NULL unless present
-    CONSTRAINT uq_att_employee_date UNIQUE (employee_id, work_date),
+    attendance_id  BIGINT AUTO_INCREMENT PRIMARY KEY,
+    employee_id    INT NOT NULL,
+    work_date      DATE NOT NULL,
+    status         VARCHAR(15) NOT NULL,
+    hours_worked   DECIMAL(4,2) NULL,
+    work_mode      VARCHAR(10) NULL,
+    CONSTRAINT uq_att_emp_date UNIQUE (employee_id, work_date),
     CONSTRAINT chk_att_hours CHECK (hours_worked IS NULL OR (hours_worked BETWEEN 0 AND 24)),
-    CONSTRAINT chk_att_work_mode CHECK (work_mode IS NULL OR work_mode IN ('onsite', 'remote', 'hybrid')),
+    CONSTRAINT chk_att_mode CHECK (work_mode IS NULL OR work_mode IN ('onsite', 'remote', 'hybrid')),
     CONSTRAINT chk_att_status_consistency CHECK (
         (status = 'present' AND hours_worked IS NOT NULL AND work_mode IS NOT NULL) OR
         (status <> 'present' AND hours_worked IS NULL AND work_mode IS NULL)
@@ -162,6 +164,7 @@ CREATE TABLE attendance (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_attendance_date ON attendance(work_date);
+CREATE INDEX idx_attendance_emp_date ON attendance(employee_id, work_date);
 
 -- ---------------------------------------------------------------------
 -- 6) role_permissions
@@ -170,14 +173,17 @@ CREATE TABLE role_permissions (
     permission_id    INT AUTO_INCREMENT PRIMARY KEY,
     role_id          INT NOT NULL,
     permission_name  VARCHAR(100) NOT NULL,
-    access_level     VARCHAR(20) NOT NULL,  -- e.g. read / write / admin
+    access_level     VARCHAR(20) NOT NULL,
     is_allowed       TINYINT(1) NOT NULL DEFAULT 0,
-    CONSTRAINT uq_role_permission UNIQUE (role_id, permission_name),
-    CONSTRAINT fk_role_permissions_role FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE
+    CONSTRAINT uq_role_perm UNIQUE (role_id, permission_name),
+    CONSTRAINT chk_perm_access CHECK (access_level IN ('read', 'write', 'admin')),
+    CONSTRAINT fk_perm_role FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE INDEX idx_role_permissions_role ON role_permissions(role_id);
+
 -- ---------------------------------------------------------------------
--- 7) commissions - actual monthly commission for Sales employees
+-- 7) commissions
 -- ---------------------------------------------------------------------
 CREATE TABLE commissions (
     commission_id      BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -186,18 +192,19 @@ CREATE TABLE commissions (
     sales_amount_egp   DECIMAL(14,2) NOT NULL,
     commission_pct     DECIMAL(5,2) NOT NULL DEFAULT 5.00,
     commission_amount  DECIMAL(14,2) NOT NULL,
-    CONSTRAINT uq_comm_employee_period UNIQUE (employee_id, period_month),
+    CONSTRAINT uq_comm_emp_period UNIQUE (employee_id, period_month),
+    CONSTRAINT chk_comm_period_day1 CHECK (DAY(period_month) = 1),
     CONSTRAINT chk_comm_sales CHECK (sales_amount_egp >= 0),
     CONSTRAINT chk_comm_pct CHECK (commission_pct BETWEEN 0 AND 100),
-    CONSTRAINT chk_comm_period_day CHECK (DAY(period_month) = 1),
-    CONSTRAINT chk_comm_amount_calc CHECK (commission_amount = ROUND(sales_amount_egp * commission_pct / 100, 2)),
+    CONSTRAINT chk_comm_math CHECK (commission_amount = ROUND(sales_amount_egp * commission_pct / 100.0, 2)),
     CONSTRAINT fk_comm_employee FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_commissions_period ON commissions(period_month);
+CREATE INDEX idx_commissions_employee ON commissions(employee_id);
 
 -- ---------------------------------------------------------------------
--- 8) employee_kpis - flexible monthly KPIs for all departments
+-- 8) employee_kpis
 -- ---------------------------------------------------------------------
 CREATE TABLE employee_kpis (
     kpi_id        BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -207,11 +214,12 @@ CREATE TABLE employee_kpis (
     target        DECIMAL(14,2) NOT NULL,
     actual        DECIMAL(14,2) NOT NULL,
     score         DECIMAL(5,2) NOT NULL,
-    CONSTRAINT uq_kpi_employee_period_name UNIQUE (employee_id, period_month, kpi_name),
-    CONSTRAINT chk_kpi_period_day CHECK (DAY(period_month) = 1),
+    CONSTRAINT uq_kpi_emp_period_name UNIQUE (employee_id, period_month, kpi_name),
+    CONSTRAINT chk_kpi_period_day1 CHECK (DAY(period_month) = 1),
     CONSTRAINT chk_kpi_score CHECK (score BETWEEN 0 AND 100),
     CONSTRAINT fk_kpi_employee FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_kpis_period ON employee_kpis(period_month);
-CREATE INDEX idx_kpis_name   ON employee_kpis(kpi_name);
+CREATE INDEX idx_kpis_employee ON employee_kpis(employee_id);
+CREATE INDEX idx_kpis_name ON employee_kpis(kpi_name);
