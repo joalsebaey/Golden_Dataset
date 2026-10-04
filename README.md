@@ -38,32 +38,26 @@ The repository provides the canonical schema, 500,000+ realistic production reco
 │   ├── commissions.csv                   # Monthly Sales commissions & sales amounts
 │   └── employee_kpis.csv                 # 158,595 monthly KPI targets, actuals & scores
 ├── postgreSQL/                           # PostgreSQL implementation (public schema)
-│   ├── DDL.sql                           # Governed DDL with triggers, checks & indexes
-│   ├── load_data.sql                     # Bulk dataset ingestion script & sequence synchronizer
-│   ├── test1.sql                         # Table catalog & live tuple inspection
-│   ├── test2.sql                         # 7-table comprehensive reporting JOIN
-│   ├── test3.sql                         # Attendance activity & work mode lookup
-│   ├── test4_recursive_hierarchy_cte.sql # Recursive CTE: Org hierarchy & span of control
-│   ├── test5_window_analytics_cte.sql    # Multi-CTE: Salary percentiles & 360° analytics
-│   └── test6_performance_heavy_benchmark.sql # 324K row aggregation & MoM trend (EXPLAIN ANALYZE)
+│   ├── 01_ddl.sql                        # Governed DDL with triggers, checks & indexes
+│   ├── 02_load_data.sql                  # Bulk dataset ingestion script & sequence synchronizer
+│   ├── 03_basic_select.sql               # Catalog inspection, table samples & smoke test
+│   ├── 04_cte_query.sql                  # Recursive CTE (Org hierarchy) & window analytics CTE
+│   ├── 05_complex_view.sql               # Complicated 8-table enterprise analytical VIEW & stress tests
+│   └── 06_kpi_commission_joins.sql      # Multi-table JOINs, KPI achievement & sales commission analytics
 ├── MySQL/                                # MySQL 8.0+ implementation (InnoDB, utf8mb4)
-│   ├── MySQL_ddl.sql                     # Governed DDL with BEFORE triggers & check constraints
-│   ├── load_data.sql                     # Bulk dataset ingestion script (LOAD DATA LOCAL INFILE)
-│   ├── test1.sql                         # Table catalog & estimated row counts
-│   ├── test 2.sql                        # 7-table comprehensive reporting JOIN
-│   ├── test3.sql                         # Attendance activity & work mode lookup
-│   ├── test4_recursive_hierarchy_cte.sql # Recursive CTE: Org hierarchy & span of control
-│   ├── test5_window_analytics_cte.sql    # Multi-CTE: Salary percentiles & 360° analytics
-│   └── test6_performance_heavy_benchmark.sql # 324K row aggregation & MoM trend (EXPLAIN ANALYZE)
+│   ├── 01_ddl.sql                        # Governed DDL with BEFORE triggers & check constraints
+│   ├── 02_load_data.sql                  # Bulk dataset ingestion script (LOAD DATA LOCAL INFILE)
+│   ├── 03_basic_select.sql               # Catalog inspection, table samples & smoke test
+│   ├── 04_cte_query.sql                  # Recursive CTE (Org hierarchy) & window analytics CTE
+│   ├── 05_complex_view.sql               # Complicated 8-table enterprise analytical VIEW & stress tests
+│   └── 06_kpi_commission_joins.sql      # Multi-table JOINs, KPI achievement & sales commission analytics
 ├── SQL server/                           # SQL Server 2016+ implementation (T-SQL)
-│   ├── SQL server_ddl.sql                # Governed DDL with AFTER trigger, NVARCHAR & BIT
-│   ├── load_data.sql                     # Bulk dataset ingestion script (BULK INSERT + KEEPIDENTITY)
-│   ├── test1.sql                         # sys.tables & sys.partitions row count check
-│   ├── test 2.sql                        # 7-table comprehensive reporting JOIN
-│   ├── test3.sql                         # Attendance activity & work mode lookup
-│   ├── test4_recursive_hierarchy_cte.sql # Recursive CTE: Org hierarchy & span of control
-│   ├── test5_window_analytics_cte.sql    # Multi-CTE: Salary percentiles & 360° analytics
-│   └── test6_performance_heavy_benchmark.sql # 324K row aggregation (SET STATISTICS TIME, IO ON)
+│   ├── 01_ddl.sql                        # Governed DDL with AFTER trigger, NVARCHAR & BIT
+│   ├── 02_load_data.sql                  # Bulk dataset ingestion script (BULK INSERT + KEEPIDENTITY)
+│   ├── 03_basic_select.sql               # Catalog inspection, table samples & smoke test
+│   ├── 04_cte_query.sql                  # Recursive CTE (Org hierarchy) & window analytics CTE
+│   ├── 05_complex_view.sql               # Complicated 8-table enterprise analytical VIEW & stress tests
+│   └── 06_kpi_commission_joins.sql      # Multi-table JOINs, KPI achievement & sales commission analytics
 ├── Golden_Evaluation_Dataset.xlsx        # 210 Golden Test Cases across PG, MySQL, SQL Server
 ├── Golden_Evaluation_Dataset_Criteria.pdf# Phase 1 Evaluation Criteria & Release Gates document
 ├── schema.jpeg                           # Visual entity relationship diagram
@@ -236,18 +230,18 @@ The Golden Evaluation Dataset tests robust multilingual understanding across 45+
 
 ---
 
-## Test Suite Architecture
+## Standardized 6-Script Multi-Engine Architecture
 
-Each engine directory contains a standardized 6-stage test suite:
+Each engine directory contains an identical, standardized 6-script workflow:
 
-| Test File | Query Type & Techniques | Key Objectives & Engine Mechanics |
+| Script File | Category | Key Objectives & Engine Mechanics |
 | :--- | :--- | :--- |
-| **`test1.sql`** | Catalog & Metadata Inspection | Verifies table registration, storage engines, and row count estimations via system catalogs (`pg_stat_user_tables`, `information_schema.tables`, `sys.tables`). |
-| **`test2.sql` / `test 2.sql`** | 7-Table Reporting JOIN | Stresses complex multi-table joins across employees, departments, roles, bank accounts, KPIs, commissions, and aggregated permissions (`STRING_AGG` / `GROUP_CONCAT`). |
-| **`test3.sql`** | Attendance & Mode Lookup | Verifies date filtering and employee attendance status across `onsite`, `remote`, and `hybrid` modes. |
-| **`test4_recursive_hierarchy_cte.sql`** | **Recursive CTE** (Org Hierarchy) | Traverses the self-referencing `manager_id` tree. Computes hierarchy depth level, constructs complete lineage breadcrumb paths, and aggregates span of control (direct report counts). |
-| **`test5_window_analytics_cte.sql`** | **Multi-CTE & Window Analytics** | Combines 4 CTEs using `DENSE_RANK()`, `PERCENT_RANK()`, and window partitioning to rank departmental salaries, compute deviations from departmental averages, calculate overall KPI achievement %, and compute individual attendance reliability rates. |
-| **`test6_performance_heavy_benchmark.sql`** | **Heavy Performance Aggregation** | Scans and groups all **324,449 attendance rows**, calculating monthly attendance health, month-over-month (MoM) attendance percentage trends via `LAG()`, and monthly department rankings. Includes execution profiling (`EXPLAIN (ANALYZE, BUFFERS)` / `EXPLAIN ANALYZE` / `SET STATISTICS TIME, IO ON`). |
+| **`01_ddl.sql`** | Data Definition Language | Reverse-dependency teardown, builds 8 normalized tables with exact data types, PKs, FKs, CHECK constraints, composite UNIQUE keys, indexes, and Sales-only commission business guard triggers. |
+| **`02_load_data.sql`** | Bulk Data Ingestion | Portable ingestion of all 8 CSV datasets (500,526 total records) in FK dependency order, mapping empty strings to NULLs, preserving IDs, synchronizing auto-increment/sequences, and executing a full row count verification audit. |
+| **`03_basic_select.sql`** | Catalog & Smoke Test | Inspects system catalog metadata (`pg_stat_user_tables`, `information_schema.tables`, `sys.tables`), queries sample records (`LIMIT 3` / `TOP 3`), and computes enterprise baseline metrics to confirm engine readiness. |
+| **`04_cte_query.sql`** | Common Table Expressions (CTE) | **Part A (Recursive CTE)**: Self-referencing graph traversal over `manager_id`, computing hierarchy depth levels, lineage paths, and spans of control. **Part B (Analytical CTE)**: Department compensation statistics and window rankings (`DENSE_RANK()`, `PERCENT_RANK()`). |
+| **`05_complex_view.sql`** | Complicated 360° Analytical View | Creates an 8-table enterprise analytical VIEW (`v_enterprise_hr_360_analytics`) with window functions, string aggregations, and KPI/commission summaries, followed by 4 diagnostic test queries stressing query optimizer execution plans. |
+| **`06_kpi_commission_joins.sql`** | Advanced JOINs & Performance Tests | Multi-table JOIN queries evaluating sales commission payout metrics, KPI target achievement ratios, MoM trends via `LAG()`, and edge-case validations (NULL salaries, 0-commission non-sales check, active vs terminated). |
 
 ---
 
@@ -285,18 +279,16 @@ The evaluation suite ([`Golden_Evaluation_Dataset.xlsx`](Golden_Evaluation_Datas
 psql -U postgres -d postgres
 
 # 1. Run the DDL script (creates tables in public schema)
-\i postgreSQL/DDL.sql
+\i postgreSQL/01_ddl.sql
 
 # 2. Ingest all 8 CSV datasets and synchronize sequences (run from repository root)
-\i postgreSQL/load_data.sql
+\i postgreSQL/02_load_data.sql
 
-# 3. Execute test suites
-\i postgreSQL/test1.sql
-\i postgreSQL/test2.sql
-\i postgreSQL/test3.sql
-\i postgreSQL/test4_recursive_hierarchy_cte.sql
-\i postgreSQL/test5_window_analytics_cte.sql
-\i postgreSQL/test6_performance_heavy_benchmark.sql
+# 3. Execute smoke test and analytics scripts
+\i postgreSQL/03_basic_select.sql
+\i postgreSQL/04_cte_query.sql
+\i postgreSQL/05_complex_view.sql
+\i postgreSQL/06_kpi_commission_joins.sql
 ```
 
 ### 2. MySQL Setup
@@ -307,18 +299,16 @@ mysql -u root -p --local-infile=1
 # 1. Create database and run DDL
 CREATE DATABASE IF NOT EXISTS golden_hr CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE golden_hr;
-SOURCE MySQL/MySQL_ddl.sql;
+SOURCE MySQL/01_ddl.sql;
 
 # 2. Ingest all 8 CSV datasets with automatic NULL conversion
-SOURCE MySQL/load_data.sql;
+SOURCE MySQL/02_load_data.sql;
 
-# 3. Execute test suites
-SOURCE MySQL/test1.sql;
-SOURCE MySQL/test 2.sql;
-SOURCE MySQL/test3.sql;
-SOURCE MySQL/test4_recursive_hierarchy_cte.sql;
-SOURCE MySQL/test5_window_analytics_cte.sql;
-SOURCE MySQL/test6_performance_heavy_benchmark.sql;
+# 3. Execute smoke test and analytics scripts
+SOURCE MySQL/03_basic_select.sql;
+SOURCE MySQL/04_cte_query.sql;
+SOURCE MySQL/05_complex_view.sql;
+SOURCE MySQL/06_kpi_commission_joins.sql;
 ```
 
 ### 3. Microsoft SQL Server Setup
@@ -330,13 +320,13 @@ USE golden_hr;
 GO
 
 -- 1. Execute DDL script
--- Open and execute: SQL server/SQL server_ddl.sql
+-- Open and execute: SQL server/01_ddl.sql
 
 -- 2. Ingest all 8 CSV datasets (BULK INSERT with KEEPIDENTITY, KEEPNULLS, UTF-8)
--- Open and execute: SQL server/load_data.sql
+-- Open and execute: SQL server/02_load_data.sql
 
--- 3. Execute test suites
--- Open and execute: SQL server/test1.sql through test6_performance_heavy_benchmark.sql
+-- 3. Execute smoke test and analytics scripts
+-- Open and execute: SQL server/03_basic_select.sql through 06_kpi_commission_joins.sql
 ```
 
 ---
